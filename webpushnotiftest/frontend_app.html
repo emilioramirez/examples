@@ -23,6 +23,14 @@
       </form>
     
     <script>
+        if ('serviceWorker' in navigator) {
+                // Register the worker
+                const registration = await navigator.serviceWorker.register('/static/frontend_worker.js');
+                // const registration = await navigator.serviceWorker.register('/static/frontend_worker.js', {scope: './'});
+                console.log('Worker registered', registration);
+        } else {
+            show_error("ServiceWorker no soportado", "");
+        }
         async function show_subscription() {
             if ('serviceWorker' in navigator) {
                 document.querySelector("#register_status").textContent = "";
@@ -47,11 +55,6 @@
         }
         async function subscribe() {
             if ('serviceWorker' in navigator) {
-                // Register the worker
-                const registration = await navigator.serviceWorker.register('/static/frontend_worker.js');
-                // const registration = await navigator.serviceWorker.register('/static/frontend_worker.js', {scope: './'});
-                console.log('Worker registered', registration);
-
                 // Subscribe the user (this is the pop up window)
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
