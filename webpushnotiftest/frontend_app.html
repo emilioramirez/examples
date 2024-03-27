@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Push Notifications</title>
+</head>
+<body>
+    <h1>Web Push Notifications</h1>
+    <button onclick="subscribe()">Suscribirse a las notificaciones push</button><br><br>
+    <div id="register_status"></div><br>
+    <button onclick="show_subscription()">Mostrar suscripciones</button>
+    <button onclick="unsubscribe()">BORRAR todas las suscripciones</button>
+    <br><br>
+    <form>
+        <label for="notification_title">Title:</label>
+        <input type="text" id="notification_title" name="notification_title" value="Hola!"><br><br>
+    
+        <label for="notification_body">Body:</label>
+        <input type="text" id="notification_body" name="notification_body" value="Esto es un mensaje de notificación de prueba"><br><br>
+    
+        <input type="button" value="Enviar notificación push" onclick="send_notification();">
+      </form>
+    
+    <script>
+        async function show_subscription() {
+            if ('serviceWorker' in navigator) {
+                document.querySelector("#register_status").textContent = "";
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    for (let registration of registrations) {
+                        const old_status = document.querySelector("#register_status").textContent;
+                        document.querySelector("#register_status").textContent = old_status + "\n" + registration;
+                    }
+                })
+            }
+        }
+        async function unsubscribe() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    for (let registration of registrations) {
+                        console.log("Limpiamos la registration: ", registration.unregister())
+                    }
+                    
+                })
+            }
+            show_subscription();
+        }
+        async function subscribe() {
+            if ('serviceWorker' in navigator) {
+                // Register the worker
+                const registration = await navigator.serviceWorker.register('/static/frontend_worker.js');
+                // const registration = await navigator.serviceWorker.register('/static/frontend_worker.js', {scope: './'});
+                console.log('Worker registered', registration);
+
+                // Subscribe the user (this is the pop up window)
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array("BH6KPku1zV97v5o8LXIXmejDpcIqlH9HDwX8Qre5ktweG2oMCdBcINyT_DufO1TNRAtQRkCfdPFrAvfIH4SsBXY") // public key
+                });
+                console.log('Subscription:', subscription);
+
+                // Save the subscription in the "database"
+                try {
+                    const response = await fetch('/save-subscription/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            subscription: subscription.toJSON(),
+                        })
+                    });
+                    if (!response.ok) {
+                        const data = await response.json();
+                        throw new Error(data.message);
+                    }
+                    const data = await response.json();
+                    console.log("Success: ", data.message);
+                    alert(data.message);
+                } catch (error) {
+                    show_error("Save subscription fail: ", error.message);
+                };
+            }
+        }
+
+        async function send_notification() {
+            const notification_title = document.getElementById("notification_title").value;
+            const notification_body = document.getElementById("notification_body").value;
+
+            try {
+                const response = await fetch('/send-notification/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: {title: notification_title, body: notification_body}
+                    })
+                });
+                if (!response.ok) {
+                    // Si la respuesta no es exitosa, maneja el error aquí
+                    const data = await response.json();
+                    throw new Error(data.message);
+                }
+                const data = await response.json();
+                // Manejar la respuesta exitosa aquí
+                console.log("Success: ", data.message);
+            }catch (error) {
+                show_error("Notification send fail: ", error.message);
+            }
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/\-/g, '+')
+                .replace(/_/g, '/');
+
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+
+            return outputArray;
+        }
+
+        function show_error(message, error) {
+            console.error(message, error);
+            alert(message + error)
+        }
+    </script>
+</body>
+</html>
